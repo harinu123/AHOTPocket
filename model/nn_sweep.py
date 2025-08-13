@@ -10,7 +10,7 @@ import wandb
 import random
 
 
-def get_data(features, data_setup):
+def get_data(features, data_setup, datadir="../data/model_inputs"):
     prefix = "biolip_ttd"
     if data_setup == "augmented":
         prefix += "_augmented"
@@ -24,21 +24,16 @@ def get_data(features, data_setup):
     elif features == "combined":
         featname = "_combined"
 
-    train_X = np.load("%s_train%s_X.npy" % (prefix, featname))
-    train_Y = np.load("%s_train_Y.npy" % prefix)
-    val_X = np.load("%s_val%s_X.npy" % (prefix, featname))
-    val_Y = np.load("%s_val_Y.npy" % prefix)
-    # test_X = np.load("%s_test%s_X.npy" % (prefix,featname))
-    # test_Y = np.load("%s_test_Y.npy" % prefix)
+    train_X = np.load(os.path.join(datadir, "%s_train%s_X.npy" % (prefix, featname)))
+    train_Y = np.load(os.path.join(datadir, "%s_train_Y.npy" % prefix))
+    val_X = np.load(os.path.join(datadir, "%s_val%s_X.npy" % (prefix, featname)))
+    val_Y = np.load(os.path.join(datadir, "%s_val_Y.npy" % prefix))
 
     train_X = torch.tensor(train_X.reshape((train_X.shape[0], -1)), dtype=torch.float32)
     train_Y = torch.tensor(train_Y.reshape((train_X.shape[0], -1)), dtype=torch.float32)
     val_X = torch.tensor(val_X.reshape((val_X.shape[0], -1)), dtype=torch.float32)
     val_Y = torch.tensor(val_Y.reshape((val_X.shape[0], -1)), dtype=torch.float32)
-    # test_X = torch.tensor(test_X.reshape((test_X.shape[0], -1)), dtype=torch.float32)
-    # test_Y = torch.tensor(test_Y.reshape((test_X.shape[0], -1)), dtype=torch.float32)
 
-    # return train_X.float(), train_Y.float(), val_X.float(), val_Y.float(), test_X.float(), test_Y.float()
     return train_X.float(), train_Y.float(), val_X.float(), val_Y.float()
 
 
@@ -88,7 +83,6 @@ def main(config_dict=None, project=None, outname=None):
     random.seed(config_dict["seed"])
     torch.manual_seed(config_dict["seed"])
 
-    # train_X, train_Y, val_X, val_Y, test_X, test_Y = get_data(features = config_dict["features"], augmented=augmented)
     train_X, train_Y, val_X, val_Y = get_data(
         features=config_dict["features"], data_setup=config_dict["data_setup"]
     )
@@ -177,6 +171,7 @@ def main(config_dict=None, project=None, outname=None):
 
 
 if __name__ == "__main__":
+    """
     config_dict = {
         "batchsize": 64,
         "dropout": 0.4,
@@ -192,4 +187,5 @@ if __name__ == "__main__":
     project = "hotpocket-nn-sweep"
 
     main(config_dict=config_dict, project=project, outname=outname)
-    # main()
+    """
+    main()

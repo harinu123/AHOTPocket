@@ -108,7 +108,7 @@ def ligand_com_dist_with_memo(
     parser,
     pocketcol,
     strucid_col,
-    strucsdir="all_biolip_pdb",
+    strucs_dir,
     allow_dupes=False,
 ):
     match = memo_df[
@@ -129,9 +129,9 @@ def ligand_com_dist_with_memo(
     elif not allow_dupes and len(match) > 0:
         print("WARNING: unexpected number of matching rows")
         print(row)
-        return ligand_com_dist(row, parser, pocketcol, strucid_col, strucsdir)
+        return ligand_com_dist(row, parser, strucs_dir, pocketcol, strucid_col)
     else:
-        return ligand_com_dist(row, parser, pocketcol, strucid_col, strucsdir)
+        return ligand_com_dist(row, parser, strucs_dir, pocketcol, strucid_col)
 
 
 def str_to_set(s):
@@ -144,8 +144,8 @@ def str_to_set(s):
     return sset
 
 
-def get_struc_coords(row, parser, strucid_col="pdb", strucsdir="all_biolip_pdb"):
-    fname = os.path.join(strucsdir, "%s.pdb" % row[strucid_col])
+def get_struc_coords(row, parser, strucs_dir, strucid_col="pdb"):
+    fname = os.path.join(strucs_dir, "%s.pdb" % row[strucid_col])
     if not os.path.isfile(fname):
         return None
     structure = parser.get_structure("protein", fname)
@@ -154,10 +154,10 @@ def get_struc_coords(row, parser, strucid_col="pdb", strucsdir="all_biolip_pdb")
 
 
 def pocket_center_of_mass(
-    row, parser, pocketcol="pred pockets", strucid_col="pdb", strucsdir="all_biolip_pdb"
+    row, parser, strucs_dir, pocketcol="pred pockets", strucid_col="pdb"
 ):
     pred_res = str_to_set(row[pocketcol])
-    result = get_struc_coords(row, parser, strucid_col=strucid_col, strucsdir=strucsdir)
+    result = get_struc_coords(row, parser, strucs_dir, strucid_col=strucid_col)
     if type(result) == type(None):
         return None
     resids, structure = result
@@ -171,10 +171,10 @@ def pocket_center_of_mass(
 
 
 def ligand_com_dist(
-    row, parser, pocketcol="pred pockets", strucid_col="pdb", strucsdir="all_biolip_pdb"
+    row, parser, strucs_dir, pocketcol="pred pockets", strucid_col="pdb"
 ):
     result = pocket_center_of_mass(
-        row, parser, pocketcol=pocketcol, strucid_col=strucid_col, strucsdir=strucsdir
+        row, parser, strucs_dir, pocketcol=pocketcol, strucid_col=strucid_col
     )
     if type(result) == type(None):
         return None
@@ -289,7 +289,7 @@ def get_top_n_clusters(df, scorecol, k=2):
     return clust_df
 
 
-def run_benchmark(dataset, df, hotpocket_df=None, prefix="", strucs_dir="all_strucs"):
+def run_benchmark(dataset, df, strucs_dir, hotpocket_df=None, prefix=""):
     if type(hotpocket_df) == type(None):
         hotpocket_df = get_df_from_outs_dif(os.path.join(dataset, "outs"))
 

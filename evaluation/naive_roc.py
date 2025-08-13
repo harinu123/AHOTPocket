@@ -2,13 +2,9 @@ from matplotlib import pyplot as plt
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-from sklearn.metrics import (
-    auc,
-    roc_curve,
-    precision_recall_curve,
-    average_precision_score,
-)
+from sklearn.metrics import auc, roc_curve
 import os
+import argparse
 
 import sys
 
@@ -51,27 +47,6 @@ def get_intersection(struc_id, dfs, thresh=5):
     return intersection
 
 
-def get_recall(row, pred_colname, true_colname):
-    assert type(row[pred_colname]) == list and type(row[true_colname]) == list
-    pred_pos = set(
-        [elem for elem in row[pred_colname] if elem.split("-")[0] == row["chain"]]
-    )
-    tp = len(pred_pos.intersection(set(row[true_colname])))
-    all_pos = len(row[true_colname])
-    return tp / all_pos
-
-
-def get_precision(row, pred_colname, true_colname):
-    assert type(row[pred_colname]) == list and type(row[true_colname]) == list
-    pred_pos = set(
-        [elem for elem in row[pred_colname] if elem.split("-")[0] == row["chain"]]
-    )
-    tp = len(pred_pos.intersection(set(row[true_colname])))
-    if len(pred_pos) == 0:
-        return None
-    return tp / len(pred_pos)
-
-
 def get_tp(row, pred_colname, true_colname):
     assert type(row[pred_colname]) == list and type(row[true_colname]) == list
     pred_pos = set(
@@ -100,37 +75,6 @@ def get_overall_tpr(df, prefix):
     tp = sum(df["%s tp" % prefix])
     pos = sum([len(l) for l in df["binding res"]])
     return tp / pos
-
-
-def violinplot(df, dftype, metric):
-    vals = [
-        df["%s intersection k=%d %s" % (dftype, i, metric)].dropna()
-        for i in range(1, 8)
-    ]
-
-    violin_parts = plt.violinplot(vals, showmeans=True)
-
-    colors = [
-        "#3271AD",
-        "#D39334",
-        "#469C76",
-        "#C17CB9",
-        "#EAE259",
-        "#949494",
-        "#C76526",
-    ]
-    for idx, pc in enumerate(violin_parts["bodies"]):
-        pc.set_facecolor(colors[idx])
-        pc.set_edgecolor("black")
-        pc.set_alpha(0.5)
-
-    violin_parts["cmeans"].set_color("gray")
-    violin_parts["cmins"].set_color("gray")
-    violin_parts["cmaxes"].set_color("gray")
-    violin_parts["cbars"].set_color("gray")
-    plt.ylim((-0.05, 1.05))
-    plt.xticks(ticks=range(1, 8), rotation=45, ha="right")
-    plt.tight_layout()
 
 
 def make_roc_plot(
@@ -252,8 +196,8 @@ def get_binding_res(row, df):
     return list(binding_set)
 
 
-def get_nonbinding_res(row):
-    resids, _ = extract_resids("all_biolip_pdb/%s.pdb" % row["pdb"])
+def get_nonbinding_res(row, struc_dir):
+    resids, _ = extract_resids(os.path.join(struc_dir, "%s.pdb" % row["pdb"]))
     resids = [res for res in resids if res.split("-")[0] == row["chain"]]
     resids = [res for res in resids if not res in row["binding res"]]
     return resids
@@ -273,7 +217,7 @@ def get_top_k(df, k=5):
     return outdf
 
 
-def get_prank_probs(row, datadir="."):
+def get_prank_probs(row, datadir=".."):
     fname = os.path.join(
         datadir, "data/prank/pdb_outs", "%s.pdb_predictions.csv" % row["structure id"]
     )
@@ -337,16 +281,10 @@ def get_true_and_labels(
     return y_true, y_pred, memo
 
 
-def get_pocketminer_residue_preds(struc_id, chain, struc_dir, resids):
-    if "all_biolip_pdb" in struc_dir:
-        scorefile = (
-            "/scratch/users/kcarp/largescale_eval_dfs/data/pocketminer/%s_out/%s-preds.npy"
-            % (struc_id, struc_id)
-        )
-    else:
-        scorefile = os.path.join(
-            struc_dir, "../data/pocketminer/%s_out/%s-preds.npy" % (struc_id, struc_id)
-        )
+def get_pocketminer_residue_preds(struc_id, chain, struc_dir, resids, datadir=".."):
+    scorefile = os.path.join(
+        datadir, "data/pocketminer/%s_out/%s-preds.npy" % (struc_id, struc_id)
+    )
     if not os.path.isfile(scorefile):
         return None
     scores = np.load(scorefile)
@@ -382,166 +320,155 @@ def get_residue_labels(struc_id, biolip_df, struc_dir):
     return dic
 
 
-autosite_df = pd.read_csv("data/pred_autosite_pockets_cleaned.csv")
-castp_df = pd.read_csv("data/pred_castp_pockets_cleaned.csv")
-cavity_df = pd.read_csv("data/pred_cavityspace_pockets_cleaned.csv")
-fpocket_df = pd.read_csv("data/pred_fpocket_pockets_scored_cleaned.csv")
-ligsite_df = pd.read_csv("data/pred_ligsite_pockets_cleaned.csv")
-pocketminer_df = pd.read_csv("data/pred_pocketminer_pockets_scored_cleaned.csv")
-prank_df = pd.read_csv("data/pred_prank_pockets_scored_cleaned.csv")
+def main(args):
+    autosite_df = pd.read_csv("../data/pred_autosite_pockets.csv")
+    castp_df = pd.read_csv("../data/pred_castp_pockets.csv")
+    cavity_df = pd.read_csv("../data/pred_cavityspace_pockets.csv")
+    fpocket_df = pd.read_csv("../data/pred_fpocket_pockets_scored.csv")
+    ligsite_df = pd.read_csv("../data/pred_ligsite_pockets.csv")
+    pocketminer_df = pd.read_csv("../data/pred_pocketminer_pockets_scored.csv")
+    prank_df = pd.read_csv("../data/pred_prank_pockets_scored.csv")
 
-dfs = {
-    "autosite": autosite_df,
-    "castp": castp_df,
-    "cavity": cavity_df,
-    "fpocket": fpocket_df,
-    "ligsite": ligsite_df,
-    "prank": prank_df,
-    "pocketminer": pocketminer_df,
-}
+    dfs = {
+        "autosite": autosite_df,
+        "castp": castp_df,
+        "cavity": cavity_df,
+        "fpocket": fpocket_df,
+        "ligsite": ligsite_df,
+        "prank": prank_df,
+        "pocketminer": pocketminer_df,
+    }
 
-prank_df["score"] = prank_df.progress_apply(get_prank_probs, axis=1)
+    prank_df["score"] = prank_df.progress_apply(get_prank_probs, axis=1)
 
-autosite_df = autosite_df[
-    autosite_df["structure id"].isin(biolip_ttd["pdb"].tolist() + ["4nst", "1wl4"])
-]
-castp_df = castp_df[
-    castp_df["structure id"].isin(biolip_ttd["pdb"].tolist() + ["4nst", "1wl4"])
-]
-cavity_df = cavity_df[
-    cavity_df["structure id"].isin(biolip_ttd["pdb"].tolist() + ["4nst", "1wl4"])
-]
-fpocket_df = fpocket_df[
-    fpocket_df["structure id"].isin(biolip_ttd["pdb"].tolist() + ["4nst", "1wl4"])
-]
-ligsite_df = ligsite_df[
-    ligsite_df["structure id"].isin(biolip_ttd["pdb"].tolist() + ["4nst", "1wl4"])
-]
-pocketminer_df = pocketminer_df[
-    pocketminer_df["structure id"].isin(biolip_ttd["pdb"].tolist() + ["4nst", "1wl4"])
-]
-prank_df = prank_df[
-    prank_df["structure id"].isin(biolip_ttd["pdb"].tolist() + ["4nst", "1wl4"])
-]
+    biolip_ttd = pd.read_csv("../data/biolip_TTD.csv")
+    biolip_ttd = biolip_ttd[
+        ["uniprot", "pdb", "chain", "binding site residues, pdb numbering"]
+    ]
 
-filt_autosite_df = get_top_k(autosite_df)
-filt_castp_df = get_top_k(castp_df)
-filt_ligsite_df = get_top_k(ligsite_df)
+    autosite_df = autosite_df[
+        autosite_df["structure id"].isin(biolip_ttd["pdb"].tolist())
+    ]
+    castp_df = castp_df[castp_df["structure id"].isin(biolip_ttd["pdb"].tolist())]
+    cavity_df = cavity_df[cavity_df["structure id"].isin(biolip_ttd["pdb"].tolist())]
+    fpocket_df = fpocket_df[fpocket_df["structure id"].isin(biolip_ttd["pdb"].tolist())]
+    ligsite_df = ligsite_df[ligsite_df["structure id"].isin(biolip_ttd["pdb"].tolist())]
+    pocketminer_df = pocketminer_df[
+        pocketminer_df["structure id"].isin(biolip_ttd["pdb"].tolist())
+    ]
+    prank_df = prank_df[prank_df["structure id"].isin(biolip_ttd["pdb"].tolist())]
 
-filt_fpocket_df = fpocket_df[fpocket_df["score"] >= 0.5]
-filt_pocketminer_df = pocketminer_df[pocketminer_df["score"] >= 0.8]
-filt_prank_df = prank_df[prank_df["score"] >= 0.5]
+    filt_autosite_df = get_top_k(autosite_df)
+    filt_castp_df = get_top_k(castp_df)
+    filt_ligsite_df = get_top_k(ligsite_df)
 
-filt_cavity_df = pd.read_csv("data/pred_cavityspace_pockets_strong.csv")
+    filt_fpocket_df = fpocket_df[fpocket_df["score"] >= 0.5]
+    filt_pocketminer_df = pocketminer_df[pocketminer_df["score"] >= 0.8]
+    filt_prank_df = prank_df[prank_df["score"] >= 0.5]
 
-filt_dfs = {
-    "autosite": filt_autosite_df,
-    "castp": filt_castp_df,
-    "cavity": filt_cavity_df,
-    "fpocket": filt_fpocket_df,
-    "ligsite": filt_ligsite_df,
-    "prank": filt_prank_df,
-    "pocketminer": filt_pocketminer_df,
-}
+    filt_cavity_df = pd.read_csv("../data/pred_cavityspace_pockets_strong.csv")
 
-biolip_ttd = pd.read_csv("biolip_TTD.csv")
-biolip_ttd = biolip_ttd[
-    ["uniprot", "pdb", "chain", "binding site residues, pdb numbering"]
-]
-biolip_ttd["binding res"] = biolip_ttd.apply(
-    lambda row: [
-        "%s-%s" % (row["chain"], resid)
-        for resid in row["binding site residues, pdb numbering"].split()
-    ],
-    axis=1,
-)
+    filt_dfs = {
+        "autosite": filt_autosite_df,
+        "castp": filt_castp_df,
+        "cavity": filt_cavity_df,
+        "fpocket": filt_fpocket_df,
+        "ligsite": filt_ligsite_df,
+        "prank": filt_prank_df,
+        "pocketminer": filt_pocketminer_df,
+    }
 
-biolip_ttd["binding res"] = biolip_ttd.progress_apply(
-    get_binding_res, args=(biolip_ttd,), axis=1
-)
-biolip_ttd = biolip_ttd.drop_duplicates(subset=["pdb", "chain"])
-biolip_ttd = biolip_ttd[
-    ~biolip_ttd["pdb"].isin(["6bcu", "6dr0", "6msg", "6msj", "6wev", "8d4c"])
-]  # getting rid of problematic structure
-biolip_ttd["nonbinding res"] = biolip_ttd.progress_apply(get_nonbinding_res, axis=1)
-
-for i in range(1, 8):
-    biolip_ttd["unfiltered intersection k=%d preds" % i] = biolip_ttd.progress_apply(
-        lambda row: get_intersection(row["pdb"], dfs, thresh=i), axis=1
-    )
-    biolip_ttd["unfiltered intersection k=%d precision" % i] = biolip_ttd.apply(
-        get_precision,
-        args=("unfiltered intersection k=%d preds" % i, "binding res"),
+    biolip_ttd["binding res"] = biolip_ttd.apply(
+        lambda row: [
+            "%s-%s" % (row["chain"], resid)
+            for resid in row["binding site residues, pdb numbering"].split()
+        ],
         axis=1,
     )
-    biolip_ttd["unfiltered intersection k=%d recall" % i] = biolip_ttd.apply(
-        get_recall,
-        args=("unfiltered intersection k=%d preds" % i, "binding res"),
-        axis=1,
+
+    biolip_ttd["binding res"] = biolip_ttd.progress_apply(
+        get_binding_res, args=(biolip_ttd,), axis=1
     )
-    biolip_ttd["unfiltered intersection k=%d fp" % i] = biolip_ttd.apply(
-        get_fp,
-        args=("unfiltered intersection k=%d preds" % i, "nonbinding res"),
-        axis=1,
-    )
-    biolip_ttd["unfiltered intersection k=%d tp" % i] = biolip_ttd.apply(
-        get_tp, args=("unfiltered intersection k=%d preds" % i, "binding res"), axis=1
+    biolip_ttd = biolip_ttd.drop_duplicates(subset=["pdb", "chain"])
+    biolip_ttd = biolip_ttd[
+        ~biolip_ttd["pdb"].isin(["6bcu", "6dr0", "6msg", "6msj", "6wev", "8d4c"])
+    ]  # getting rid of problematic structure
+    biolip_ttd["nonbinding res"] = biolip_ttd.progress_apply(
+        get_nonbinding_res, args=(args.struc_dir,), axis=1
     )
 
-    biolip_ttd["filtered intersection k=%d preds" % i] = biolip_ttd.progress_apply(
-        lambda row: get_intersection(row["pdb"], filt_dfs, thresh=i), axis=1
+    for i in range(1, 8):
+        biolip_ttd["unfiltered intersection k=%d preds" % i] = (
+            biolip_ttd.progress_apply(
+                lambda row: get_intersection(row["pdb"], dfs, thresh=i), axis=1
+            )
+        )
+        biolip_ttd["unfiltered intersection k=%d fp" % i] = biolip_ttd.apply(
+            get_fp,
+            args=("unfiltered intersection k=%d preds" % i, "nonbinding res"),
+            axis=1,
+        )
+        biolip_ttd["unfiltered intersection k=%d tp" % i] = biolip_ttd.apply(
+            get_tp,
+            args=("unfiltered intersection k=%d preds" % i, "binding res"),
+            axis=1,
+        )
+
+        biolip_ttd["filtered intersection k=%d preds" % i] = biolip_ttd.progress_apply(
+            lambda row: get_intersection(row["pdb"], filt_dfs, thresh=i), axis=1
+        )
+        biolip_ttd["filtered intersection k=%d fp" % i] = biolip_ttd.apply(
+            get_fp,
+            args=("filtered intersection k=%d preds" % i, "nonbinding res"),
+            axis=1,
+        )
+        biolip_ttd["filtered intersection k=%d tp" % i] = biolip_ttd.apply(
+            get_tp, args=("filtered intersection k=%d preds" % i, "binding res"), axis=1
+        )
+
+    autosite_y_true, autosite_y_pred, memo = get_true_and_labels(
+        autosite_df, args.struc_dir, biolip_ttd, binary_only=True, memo={}
     )
-    biolip_ttd["filtered intersection k=%d precision" % i] = biolip_ttd.apply(
-        get_precision,
-        args=("filtered intersection k=%d preds" % i, "binding res"),
-        axis=1,
+    cavity_y_true, cavity_y_pred, memo = get_true_and_labels(
+        cavity_df, args.struc_dir, biolip_ttd, binary_only=True, memo=memo
     )
-    biolip_ttd["filtered intersection k=%d recall" % i] = biolip_ttd.apply(
-        get_recall, args=("filtered intersection k=%d preds" % i, "binding res"), axis=1
+    castp_y_true, castp_y_pred, memo = get_true_and_labels(
+        castp_df, args.struc_dir, biolip_ttd, binary_only=True, memo=memo
     )
-    biolip_ttd["filtered intersection k=%d fp" % i] = biolip_ttd.apply(
-        get_fp, args=("filtered intersection k=%d preds" % i, "nonbinding res"), axis=1
+    ligsite_y_true, ligsite_y_pred, memo = get_true_and_labels(
+        ligsite_df, args.struc_dir, biolip_ttd, binary_only=True, memo=memo
     )
-    biolip_ttd["filtered intersection k=%d tp" % i] = biolip_ttd.apply(
-        get_tp, args=("filtered intersection k=%d preds" % i, "binding res"), axis=1
+    fpocket_y_true, fpocket_y_pred, memo = get_true_and_labels(
+        fpocket_df, args.struc_dir, biolip_ttd, scorecol="score", memo=memo
+    )
+    prank_y_true, prank_y_pred, memo = get_true_and_labels(
+        prank_df, args.struc_dir, biolip_ttd, scorecol="score", memo=memo
+    )
+    pocketminer_y_true, pocketminer_y_pred, memo = get_true_and_labels(
+        pocketminer_df, args.struc_dir, biolip_ttd, pocketminer=True, memo=memo
     )
 
-autosite_y_true, autosite_y_pred, memo = get_true_and_labels(
-    autosite_df, "all_biolip_pdb", biolip_ttd, binary_only=True, memo={}
-)
-cavity_y_true, cavity_y_pred, memo = get_true_and_labels(
-    cavity_df, "all_biolip_pdb", biolip_ttd, binary_only=True, memo=memo
-)
-castp_y_true, castp_y_pred, memo = get_true_and_labels(
-    castp_df, "all_biolip_pdb", biolip_ttd, binary_only=True, memo=memo
-)
-ligsite_y_true, ligsite_y_pred, memo = get_true_and_labels(
-    ligsite_df, "all_biolip_pdb", biolip_ttd, binary_only=True, memo=memo
-)
-fpocket_y_true, fpocket_y_pred, memo = get_true_and_labels(
-    fpocket_df, "all_biolip_pdb", biolip_ttd, scorecol="score", memo=memo
-)
-prank_y_true, prank_y_pred, memo = get_true_and_labels(
-    prank_df, "all_biolip_pdb", biolip_ttd, scorecol="score", memo=memo
-)
-pocketminer_y_true, pocketminer_y_pred, memo = get_true_and_labels(
-    pocketminer_df, "all_biolip_pdb", biolip_ttd, pocketminer=True, memo=memo
-)
+    make_roc_plot(
+        biolip_ttd,
+        autosite_y_true,
+        autosite_y_pred,
+        castp_y_true,
+        castp_y_pred,
+        cavity_y_true,
+        cavity_y_pred,
+        fpocket_y_true,
+        fpocket_y_pred,
+        ligsite_y_true,
+        ligsite_y_pred,
+        prank_y_true,
+        prank_y_pred,
+        pocketminer_y_true,
+        pocketminer_y_pred,
+    )
 
-make_roc_plot(
-    biolip_ttd,
-    autosite_y_true,
-    autosite_y_pred,
-    castp_y_true,
-    castp_y_pred,
-    cavity_y_true,
-    cavity_y_pred,
-    fpocket_y_true,
-    fpocket_y_pred,
-    ligsite_y_true,
-    ligsite_y_pred,
-    prank_y_true,
-    prank_y_pred,
-    pocketminer_y_true,
-    pocketminer_y_pred,
-)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--struc_dir", help="path to directory with pdb structures")
+    args = parser.parse_args()
+    main(args)

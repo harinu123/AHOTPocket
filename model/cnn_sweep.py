@@ -10,7 +10,7 @@ import wandb
 import random
 
 
-def get_data(features, data_setup):
+def get_data(features, data_setup, datadir="../data/model_inputs"):
     prefix = "biolip_ttd"
     if data_setup == "augmented":
         prefix += "_augmented"
@@ -24,21 +24,16 @@ def get_data(features, data_setup):
     elif features == "combined":
         featname = "_combined"
 
-    train_X = np.load("%s_train%s_X.npy" % (prefix, featname))
-    train_Y = np.load("%s_train_Y.npy" % prefix)
-    val_X = np.load("%s_val%s_X.npy" % (prefix, featname))
-    val_Y = np.load("%s_val_Y.npy" % prefix)
-    # test_X = np.load("%s_test%s_X.npy" % (prefix,featname))
-    # test_Y = np.load("%s_test_Y.npy" % prefix)
+    train_X = np.load(os.path.join(datadir, "%s_train%s_X.npy" % (prefix, featname)))
+    train_Y = np.load(os.path.join(datadir, "%s_train_Y.npy" % prefix))
+    val_X = np.load(os.path.join(datadir, "%s_val%s_X.npy" % (prefix, featname)))
+    val_Y = np.load(os.path.join(datadir, "%s_val_Y.npy" % prefix))
 
     train_X = torch.tensor(np.expand_dims(train_X, axis=1)).float()
     train_Y = torch.tensor(np.expand_dims(train_Y, axis=1)).float()
     val_X = torch.tensor(np.expand_dims(val_X, axis=1)).float()
     val_Y = torch.tensor(np.expand_dims(val_Y, axis=1)).float()
-    # test_X = torch.tensor(np.expand_dims(test_X, axis=1)).float()
-    # test_Y = torch.tensor(np.expand_dims(test_Y, axis=1)).float()
 
-    # return train_X, train_Y, val_X, val_Y, test_X, test_Y
     return train_X, train_Y, val_X, val_Y
 
 
@@ -115,7 +110,6 @@ def main(config_dict=None, project=None, outname=None):
     random.seed(config_dict["seed"])
     torch.manual_seed(config_dict["seed"])
 
-    # train_X, train_Y, val_X, val_Y, test_X, test_Y = get_data(features = config.features)
     train_X, train_Y, val_X, val_Y = get_data(
         features=config_dict["features"], data_setup=config_dict["data_setup"]
     )
@@ -187,14 +181,6 @@ def main(config_dict=None, project=None, outname=None):
         if epoch == 15 and best_val_auc <= 0.5 and train_auc <= 0.5:
             print("Stopping early due to lack of performance...", flush=True)
             break
-
-    """
-    if type(args.o) == str:
-        outname = args.o
-    else:
-        outname = "model.pt"
-    torch.save(model.state_dict(), outname)
-   """
 
     y_train_pred = model(train_X)
     train_accuracy = (

@@ -102,18 +102,17 @@ def prep_pockets(
 
 
 def main(args):
-    biolip = pd.read_csv("data/known_pockets.csv")
-    ligsite = pd.read_csv("data/pred_ligsite_pockets.csv")
-    castp = pd.read_csv("data/pred_castp_pockets.csv")
+    biolip = pd.read_csv("../data/known_pockets.csv")
+    ligsite = pd.read_csv("../data/pred_ligsite_pockets.csv")
+    castp = pd.read_csv("../data/pred_castp_pockets.csv")
+    fpocket = pd.read_csv("../data/pred_fpocket_pockets_scored.csv")
+    pocketminer = pd.read_csv("../data/pred_pocketminer_pockets_scored.csv")
+    prank = pd.read_csv("../data/pred_prank_pockets_scored.csv")
 
     if args.filter:
-        fpocket = pd.read_csv("%s_scored_fpocket_pockets.csv" % args.prot)
-        # castp = pd.read_csv("%s_scored_castp_pockets.csv" % args.prot)
-        cavity = pd.read_csv("data/pred_cavityspace_pockets_strong.csv")
+        cavity = pd.read_csv("../data/pred_cavityspace_pockets_strong.csv")
     else:
-        fpocket = pd.read_csv("data/pred_fpocket_pockets.csv")
-        castp = pd.read_csv("data/pred_castp_pockets.csv")
-        cavity = pd.read_csv("data/pred_cavityspace_pockets.csv")
+        cavity = pd.read_csv("../data/pred_cavityspace_pockets.csv")
 
     biolip_dict = {
         "df": biolip,
@@ -133,8 +132,6 @@ def main(args):
         "filter": False,
         "thresh": None,
     }
-    # "filter": args.filter,
-    # "thresh": 50}
     cavity_dict = {
         "df": cavity,
         "prot_id_col": "structure id",
@@ -161,6 +158,24 @@ def main(args):
         "chain_col": False,
         "filter": False,
         "thresh": None,
+    }
+    prank_dict = {
+        "df": prank,
+        "prot_id_col": "structure id",
+        "pocket_res_col": "pocket res",
+        "pocket_id_col": "pocket id",
+        "chain_col": False,
+        "filter": args.filter,
+        "thresh": 0.5,
+    }
+    pocketminer_dict = {
+        "df": pocketminer,
+        "prot_id_col": "structure id",
+        "pocket_res_col": "pocket res",
+        "pocket_id_col": "pocket id",
+        "chain_col": False,
+        "filter": args.filter,
+        "thresh": 0.8,
     }
     info_dict = {
         "biolip": biolip_dict,

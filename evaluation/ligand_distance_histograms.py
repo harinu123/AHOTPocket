@@ -58,7 +58,7 @@ def str_to_list(l):
     return llist
 
 
-def get_background_dist(struclist, df, background_dist={}):
+def get_background_dist(struclist, strucdir, df, background_dist={}):
     for strucid in tqdm(struclist):
         if strucid in background_dist.keys():
             continue
@@ -69,7 +69,7 @@ def get_background_dist(struclist, df, background_dist={}):
         structure = None
         for _ in range(n_lig):
             point, structure = get_random_point(
-                "all_biolip_pdb/%s.pdb" % strucid, structure
+                os.path.join(strucdir, "%s.pdb" % strucid), structure
             )
             dist = get_dist_from_ligand(structure, point, ligands)
             dists.append(dist)
@@ -105,17 +105,3 @@ def ligand_dist_hist(df, background, color, title):
     plt.xlim([-5, 105])
     plt.ylim([0, 3800])
     plt.title("%s\np=%0.2e" % (title, p_val))
-
-
-hotpocket_b_clust = pd.read_csv("largescale_eval_dfs/hotpocket_embs_clust_top_n.csv")
-hotpocket_c_clust = pd.read_csv("largescale_eval_dfs/hotpocket_comb_clust_top_n.csv")
-
-autosite = pd.read_csv("largescale_eval_dfs/autosite_top_n.csv")
-castp = pd.read_csv("largescale_eval_dfs/castp_top_n.csv")
-cavity = pd.read_csv("largescale_eval_dfs/cavity_top_n.csv")
-fpocket = pd.read_csv("largescale_eval_dfs/fpocket_top_n.csv")
-ligsite = pd.read_csv("largescale_eval_dfs/ligsite_top_n.csv")
-pocketminer = pd.read_csv("largescale_eval_dfs/pocketminer_top_n.csv")
-prank = pd.read_csv("largescale_eval_dfs/prank_top_n.csv")
-
-background_dist = pickle.load(open("biolip_background_dist.p", "rb"))

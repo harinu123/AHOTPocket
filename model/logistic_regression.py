@@ -114,27 +114,29 @@ def assess_model(
 def main(args):
     seeds = random.sample(range(1000), 2)
 
+    datadir = "../data/model_inputs"
+
     if args.features == "pred":
-        train_X = np.load("biolip_ttd_train_preds_X.npy")
-        val_X = np.load("biolip_ttd_val_preds_X.npy")
-        test_X = np.load("biolip_ttd_test_preds_X.npy")
+        train_X = np.load(os.path.join(datadir, "biolip_ttd_train_preds_X.npy"))
+        val_X = np.load(os.path.join(datadir, "biolip_ttd_val_preds_X.npy"))
+        test_X = np.load(os.path.join(datadir, "biolip_ttd_test_preds_X.npy"))
     elif args.features == "embs":
-        train_X = np.load("biolip_ttd_train_embs_X.npy")
-        val_X = np.load("biolip_ttd_val_embs_X.npy")
-        test_X = np.load("biolip_ttd_test_embs_X.npy")
+        train_X = np.load(os.path.join(datadir, "biolip_ttd_train_embs_X.npy"))
+        val_X = np.load(os.path.join(datadir, "biolip_ttd_val_embs_X.npy"))
+        test_X = np.load(os.path.join(datadir, "biolip_ttd_test_embs_X.npy"))
     elif args.features == "comb":
-        train_X = np.load("biolip_ttd_train_combined_X.npy")
-        val_X = np.load("biolip_ttd_val_combined_X.npy")
-        test_X = np.load("biolip_ttd_test_combined_X.npy")
+        train_X = np.load(os.path.join(datadir, "biolip_ttd_train_combined_X.npy"))
+        val_X = np.load(os.path.join(datadir, "biolip_ttd_val_combined_X.npy"))
+        test_X = np.load(os.path.join(datadir, "biolip_ttd_test_combined_X.npy"))
     else:
         print(
             'ERROR. Feature option not supported. Please use "pred", "embs", or "comb"'
         )
         return
 
-    train_Y = np.load("biolip_ttd_train_Y.npy")
-    val_Y = np.load("biolip_ttd_val_Y.npy")
-    test_Y = np.load("biolip_ttd_test_Y.npy")
+    train_Y = np.load(os.path.join(datadir, "biolip_ttd_train_Y.npy"))
+    val_Y = np.load(os.path.join(datadir, "biolip_ttd_val_Y.npy"))
+    test_Y = np.load(os.path.join(datadir, "biolip_ttd_test_Y.npy"))
 
     train_X = train_X.reshape((train_X.shape[0], -1))
     val_X = val_X.reshape((val_X.shape[0], -1))

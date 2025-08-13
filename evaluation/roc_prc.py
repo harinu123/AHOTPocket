@@ -3,7 +3,8 @@ import numpy as np
 from tqdm import tqdm
 import os
 import matplotlib
-matplotlib.use('agg')
+
+matplotlib.use("agg")
 from matplotlib import pyplot as plt
 from sklearn.metrics import (
     roc_curve,
@@ -171,15 +172,14 @@ def get_true_and_labels(
     return y_true, y_pred, memo
 
 
-def get_prank_probs(row, dataset):
+def get_prank_probs(row, datadir=".."):
     fname = os.path.join(
-        dataset, "data/prank/pdb_outs", "%s.pdb_predictions.csv" % row["structure id"]
+        datadir, "data/prank/pdb_outs", "%s.pdb_predictions.csv" % row["structure id"]
     )
     if not os.path.isfile(fname):
         return None
     df = pd.read_csv(fname)
     df.columns = [col.strip() for col in df.columns]
-    # assert df.columns[0].strip() == "name"
     df["stripped name"] = df.apply(lambda row: row[df.columns[0]].strip(), axis=1)
     df = df[df["stripped name"] == row["pocket id"]]
     assert len(df) == 1
@@ -190,15 +190,9 @@ def get_pocketminer_residue_preds(struc_id, struc_dir, structure=None):
     resids, structure = extract_resids(
         os.path.join(struc_dir, "%s.pdb" % struc_id), structure=structure
     )
-    if "all_biolip_pdb" in struc_dir:
-        scorefile = (
-            "/scratch/users/kcarp/largescale_eval_dfs/data/pocketminer/%s_out/%s-preds.npy"
-            % (struc_id, struc_id)
-        )
-    else:
-        scorefile = os.path.join(
-            struc_dir, "../data/pocketminer/%s_out/%s-preds.npy" % (struc_id, struc_id)
-        )
+    scorefile = os.path.join(
+        struc_dir, "../data/pocketminer/%s_out/%s-preds.npy" % (struc_id, struc_id)
+    )
     scores = np.load(scorefile)
     if len(resids) != scores.shape[1]:
         return None, structure
@@ -231,7 +225,7 @@ def make_roc_plot(
     ligsite_vals,
     pocketminer_vals,
     title,
-    out
+    out,
 ):
     hotpocket_embs_y_true, hotpocket_embs_y_pred = hotpocket_embs_vals
     hotpocket_comb_y_true, hotpocket_comb_y_pred = hotpocket_comb_vals
@@ -336,6 +330,7 @@ def make_roc_plot(
     plt.grid()
     plt.savefig(out)
 
+
 # fixing misleading lines from anchoring at (0,1) and (1,0)
 def correct_prc(recall, precision):
     precision[-1] = precision[-2]
@@ -424,12 +419,22 @@ def make_prc_plot(
 
     plt.figure()
     if omit_anchor:
-        hotpocket_embs_recall, hotpocket_embs_precision = correct_prc(hotpocket_embs_recall, hotpocket_embs_precision)
-        hotpocket_comb_recall, hotpocket_comb_precision = correct_prc(hotpocket_comb_recall, hotpocket_comb_precision)
-        hotpocket_naive_recall, hotpocket_naive_precision = correct_prc(hotpocket_naive_recall, hotpocket_naive_precision)
-        fpocket_recall, fpocket_precision = correct_prc(fpocket_recall, fpocket_precision)
+        hotpocket_embs_recall, hotpocket_embs_precision = correct_prc(
+            hotpocket_embs_recall, hotpocket_embs_precision
+        )
+        hotpocket_comb_recall, hotpocket_comb_precision = correct_prc(
+            hotpocket_comb_recall, hotpocket_comb_precision
+        )
+        hotpocket_naive_recall, hotpocket_naive_precision = correct_prc(
+            hotpocket_naive_recall, hotpocket_naive_precision
+        )
+        fpocket_recall, fpocket_precision = correct_prc(
+            fpocket_recall, fpocket_precision
+        )
         prank_recall, prank_precision = correct_prc(prank_recall, prank_precision)
-        pocketminer_recall, pocketminer_precision = correct_prc(pocketminer_recall, pocketminer_precision)
+        pocketminer_recall, pocketminer_precision = correct_prc(
+            pocketminer_recall, pocketminer_precision
+        )
     plt.plot(
         hotpocket_embs_recall,
         hotpocket_embs_precision,
@@ -450,9 +455,7 @@ def make_prc_plot(
         fpocket_precision,
         label="Fpocket, AUPRC=%0.3f" % fpocket_auprc,
     )
-    plt.plot(
-        prank_recall, prank_precision, label="P2Rank, AUPRC=%0.3f" % prank_auprc
-    )
+    plt.plot(prank_recall, prank_precision, label="P2Rank, AUPRC=%0.3f" % prank_auprc)
     plt.plot(
         pocketminer_recall,
         pocketminer_precision,
@@ -504,58 +507,3 @@ def make_prc_plot(
 
 def baseline_auprc(y_true):
     return sum(y_true) / len(y_true)
-
-def load_naive_filter_data():
-    hotpocket_df = pd.read_csv("largescale_eval_dfs/hotpocket_df.csv")
-    
-    hotpocket_fpocket = hotpocket_df[
-        hotpocket_df["contributing method name"] == "fpocket"
-    ].copy()
-    hotpocket_prank = hotpocket_df[
-        hotpocket_df["contributing method name"] == "prank"
-    ].copy()
-    hotpocket_autosite = hotpocket_df[
-        hotpocket_df["contributing method name"] == "autosite"
-    ].copy()
-    hotpocket_cavity = hotpocket_df[
-        hotpocket_df["contributing method name"] == "cavity"
-    ].copy()
-    hotpocket_castp = hotpocket_df[
-        hotpocket_df["contributing method name"] == "castp"
-    ].copy()
-    hotpocket_ligsite = hotpocket_df[
-        hotpocket_df["contributing method name"] == "ligsite"
-    ].copy()
-    hotpocket_pocketminer = hotpocket_df[
-        hotpocket_df["contributing method name"] == "pocketminer"
-    ].copy()
-    
-    hotpocket_prank["prank prob"] = hotpocket_prank.progress_apply(
-        get_prank_probs, args=("largescale_eval_dfs",), axis=1
-    )
-    
-    hotpocket_autosite_filtered = get_top_k(hotpocket_autosite)
-    hotpocket_castp_filtered = get_top_k(hotpocket_castp)
-    hotpocket_ligsite_filtered = get_top_k(hotpocket_ligsite)
-    hotpocket_pocketminer_filtered = hotpocket_pocketminer[
-        hotpocket_pocketminer["score"] >= 0.8
-    ].copy()
-    hotpocket_fpocket_filtered = hotpocket_fpocket[hotpocket_fpocket["score"] >= 0.5].copy()
-    hotpocket_prank_filtered = hotpocket_prank[hotpocket_prank["score"] >= 0.5].copy()
-    
-    hotpocket_cavity_filtered = pd.read_csv("data/pred_cavityspace_pockets_strong.csv")
-    hotpocket_cavity_filtered = hotpocket_cavity_filtered[
-        hotpocket_cavity_filtered["structure id"].isin(
-            hotpocket_df["structure id"].tolist()
-        )
-    ].copy()
-    
-    hotpocket_filt_dfs = {
-        "autosite": hotpocket_autosite_filtered,
-        "castp": hotpocket_castp_filtered,
-        "cavity": hotpocket_cavity_filtered,
-        "fpocket": hotpocket_fpocket_filtered,
-        "ligsite": hotpocket_ligsite_filtered,
-        "prank": hotpocket_prank_filtered,
-        "pocketminer": hotpocket_pocketminer_filtered,
-    }

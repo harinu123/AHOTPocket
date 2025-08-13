@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import os
 import torch
-from nn_sweep import get_model
 import argparse
 import warnings
 from Bio.PDB import PDBParser
@@ -14,7 +13,19 @@ import sys
 sys.path.insert(0, "..")
 from utils import extract_resids, AA_3TO1
 
+sys.path.insert(0, "../model")
+from nn_sweep import get_model
 
+
+# gets predicted pockets from all methods for a given structure id
+#
+# params:
+# dfs (dict) - dictionary where keys are names of predicted pocket dataframes for each method, and values are the dataframes
+# struc_id (string) - structure id
+#
+# returns:
+# all_pockets (list of list of str) - list containing all predicted pockets, where each pocket is a list of residue ids
+# all_pockets_df (pandas DataFrame) - dataframe with all rows for the given structure id across all dataframes in the dfs dict
 def retrieve_pockets(dfs, struc_id):
     all_pockets = []
     all_pockets_df = None
@@ -35,7 +46,20 @@ def retrieve_pockets(dfs, struc_id):
     return all_pockets, all_pockets_df
 
 
-def featurize_esm(struc_file, struc_id, pockets, embs_dir, rep_len, emb_size=2560):
+# gets the esm2 representation for all pockets in a given structure
+#
+# params:
+# struc_file (str) - path to protein structure file
+# struc_id (str) - structure id of structure to featurize
+# pockets (list of list of str) - list containing predicted pockets, where each pocket is a list of residue ids
+# embs_dir (str) - path to directory where ESM2 embedding outputs are located
+# rep_len (int) - length of pocket representation, i.e. number of amino acids
+# emb_size (int) - ESM2 embedding size
+#
+# returns:
+# emb_rep (np ndarray) - array containing 2D pocket representations for all input pockets
+# chain_seq_dict (dict) - dictionary mapping each chain of the structure to its sequence embedding
+def featurize_esm(struc_file, struc_id, pockets, embs_dir, rep_len=15, emb_size=2560):
     emb_rep = np.zeros((len(pockets), rep_len, emb_size))
 
     chains = set()
@@ -75,6 +99,17 @@ def featurize_esm(struc_file, struc_id, pockets, embs_dir, rep_len, emb_size=256
     return emb_rep, chain_seq_dict
 
 
+# gets the constituent method prediction representation for all pockets in a given structure
+#
+# params:
+# pdb (str) - structure id of structure to featurize
+# pockets (list of list of str) - list containing predicted pockets, where each pocket is a list of residue ids
+# rep_len (int) - length of pocket representation, i.e. number of amino acids
+# dfs (dict) - dictionary where keys are names of predicted pocket dataframes for each method, and values are the dataframes
+# chain_seq_dict (dict) - dictionary mapping each chain of the structure to its sequence representation
+#
+# returns:
+# emb_rep (np ndarray) - array containing 2D pocket representations for all input pockets
 def featurize_method_preds(pdb, pockets, rep_len, dfs, chain_seq_dict):
     emb_rep = np.zeros((len(pockets), rep_len, len(dfs.keys())))
     res_sets = dict()
@@ -107,7 +142,15 @@ def featurize_method_preds(pdb, pockets, rep_len, dfs, chain_seq_dict):
     return emb_rep
 
 
-def get_dfs(dfsdir="data", prefix=""):
+# retrieves dataframes with constituent pocket predictions
+#
+# params:
+# dfsdir (str) - path to directory with dataframes
+# prefix (str) - prefix before standard dataframe name
+#
+# returns:
+# dfs (dict) - dictionary where keys are names of predicted pocket dataframes for each method, and values are the dataframes
+def get_dfs(dfsdir="../data", prefix=""):
     autosite_df = pd.read_csv(
         os.path.join(dfsdir, "%spred_autosite_pockets.csv" % prefix)
     )
@@ -122,9 +165,11 @@ def get_dfs(dfsdir="data", prefix=""):
         os.path.join(dfsdir, "%spred_ligsite_pockets.csv" % prefix)
     )
     pocketminer_df = pd.read_csv(
-        os.path.join(dfsdir, "%spred_pocketminer_pockets.csv" % prefix)
+        os.path.join(dfsdir, "%spred_pocketminer_pockets_scored.csv" % prefix)
     )
-    prank_df = pd.read_csv(os.path.join(dfsdir, "%spred_prank_pockets.csv" % prefix))
+    prank_df = pd.read_csv(
+        os.path.join(dfsdir, "%spred_prank_pockets_scored.csv" % prefix)
+    )
 
     dfs = {
         "autosite": autosite_df,
@@ -138,9 +183,18 @@ def get_dfs(dfsdir="data", prefix=""):
     return dfs
 
 
+# loads pytorch models
+#
+# returns:
+# nn_embs_model - pytorch model using Feature Set B (ESM2 embeddings only)
+# nn_comb_model - pytorch model using Feature Set C (constituent method predictions and ESM2 embeddings)
 def get_models():
-    nn_embs_state_dict = torch.load("nn_augmented_esm_only_daily-sweep-128_733.pt")
-    nn_comb_state_dict = torch.load("nn_augmented_combined_prime-sweep-241_733.pt")
+    nn_embs_state_dict = torch.load(
+        "../data/model_checkpoints/nn_augmented_esm_only_daily-sweep-128_733.pt"
+    )
+    nn_comb_state_dict = torch.load(
+        "../data/model_checkpoints/nn_augmented_combined_prime-sweep-241_733.pt"
+    )
     nn_embs_config_dict = {"features": "esm_only", "dropout": 0.5, "n_hidden": 1}
     nn_comb_config_dict = {"features": "combined", "dropout": 0.4, "n_hidden": 1}
     nn_embs_model = get_model(nn_embs_config_dict)
@@ -152,12 +206,27 @@ def get_models():
     return nn_embs_model, nn_comb_model
 
 
+# loads pt files silently
+#
+# params:
+# path (str) - path to pt file to load
+#
+# returns:
+# loaded file
 def load_pt(path):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", FutureWarning)
         return torch.load(path)
 
 
+# obtains the average pLDDT of the pocket in the given row of a dataframe
+#
+# params:
+# row - row of pandas dataframe with pocket residue information in the "pocket res" column
+# struc - PDBParser output of structure file
+#
+# returns:
+# average pLDDT (float)
 def get_confidence(row, struc):
     pocket_res = row["pocket res"].split()
 
@@ -176,30 +245,27 @@ def get_confidence(row, struc):
     return sum(atom_confidence) / len(atom_confidence)
 
 
-def confidence_over_df(dfname):
+# obtains the average confidence for all AF2-predicted pockets in a dataframe
+#
+# params:
+# df (pandas DataFrame) - dataframe on which to run
+# struc_dir (str) - path to directory with structures
+#
+# returns:
+# new_df (pandas DataFrame) - same dataframe but with "avg confidence" column containing average confidence for pockets on AF2-predicted structures (the avg confidence for all pockets on experimentally-determined structures is 100)
+def confidence_over_df(df, struc_dir):
     parser = PDBParser(QUIET=True)
-    df = pd.read_csv(dfname)
-
-    struc_dirs = [
-        "/scratch/users/kcarp/proteome_wide_analysis/strucs",
-        "/scratch/users/kcarp/cote_crohns/strucs",
-        "/scratch/users/kcarp/all_biolip_pdb",
-    ]
 
     af_df = df[df["structure type"] == "AF2"]
     new_df = df[df["structure type"] == "PDB"]
     new_df["avg confidence"] = 100
 
-    print(len(af_df["structure id"].unique()))
     for strucname in tqdm(af_df["structure id"].unique()):
-        struc = None
-        for struc_dir in struc_dirs:
-            fname = os.path.join(struc_dir, "%s.pdb" % strucname)
-            if os.path.isfile(fname):
-                struc = parser.get_structure("prot", fname)
-                break
-        if type(struc) == type(None):
+        fname = os.path.join(struc_dir, "%s.pdb" % strucname)
+        if not os.path.isfile(fname):
             print("no structure found: %s" % strucname)
+            continue
+        struc = parser.get_structure("prot", fname)
         subdf = af_df[af_df["structure id"] == strucname].copy()
         subdf["avg confidence"] = subdf.apply(get_confidence, args=(struc,), axis=1)
         new_df = pd.concat([new_df, subdf])
@@ -284,6 +350,8 @@ def main(args):
         pockets_df["embs NN score"] = esm_embs_Y_pred.detach().numpy()
         pockets_df["comb NN score"] = combined_Y_pred.detach().numpy()
 
+        pockets_df = confidence_over_df(pockets_df, args.pdbdir)
+
         pockets_df.to_csv(os.path.join(outdir, "%s.csv" % struc_id))
 
 
@@ -312,7 +380,7 @@ if __name__ == "__main__":
         "--dfsdir",
         type=str,
         help="directory containing prediction csvs for each method",
-        default="data/",
+        default="../data/",
     )
     parser.add_argument(
         "--dfs_prefix", type=str, help="prefix for output method pred csvs", default=""

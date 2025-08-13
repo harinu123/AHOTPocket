@@ -1092,7 +1092,7 @@ def make_prank_df(df, start=0, n=-1):
         prank_df = pd.concat([prank_df, pockets_df])
 
     prank_df = clean_df(prank_df)
-    
+
     if n == -1:
         prank_df.to_csv("../data/pred_prank_pockets_scored.csv", sep=",", index=False)
     else:
