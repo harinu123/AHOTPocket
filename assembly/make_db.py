@@ -100,6 +100,11 @@ def castp_download(df):
         subprocess.run(unzip_parts)
         subprocess.run(["rm", "%s.zip" % pdb])
 
+# batch downloads all PDB and AF2 CavitySpace pockets
+def setup_cavityspace():
+    os.system("python ../data/cavityspace/cavityspace_downloader.py -i ../data/cavityspace/AF-all_cavities_index.pkl -k cavity -o ../data/cavityspace/AF-all-cavities")
+    os.system("python ../data/cavityspace/cavityspace_downloader.py -i ../data/cavityspace/hrefPDB-all_cavities_index.pkl -k cavity -o ../data/cavityspace/PDB-all-cavities")
+
 
 # removes any hetatm records from the pdb file for safe pocketfinding
 #
@@ -256,6 +261,47 @@ def run_pocket_program(df, method, start=0, n=-1, autosite_script_relative_path=
         for idx, fpath in enumerate(fpaths):
             mv_parts = ["mv", fpath, protdirs[idx]]
             subprocess.run(mv_parts)
+
+# for either PDB or AF2 structures in df, creates the input file and runs the p2rank program
+# note that you may need to load java for this -- on stanford sherlock, the command is `ml java/21`
+#
+# params:
+# df (pandas DataFrame) - dataframe with all proteome structure files
+# struc_type (str) - either "PDB" or "AF2"
+#
+# returns:
+# None
+def run_prank(df, struc_type):
+    if not struc_type in df["structure type"].tolist():
+        return
+
+    subdf = df[df["structure type"] == struc_type].copy()
+    subdf[["structure file"]].to_csv("../data/prank/%s_all.ds" % struc_type.lower(), index=False, header=False)
+    if not os.path.isdir("../data/prank/%s_outs" % struc_type.lower()):
+        os.mkdir("../data/prank/%s_outs" % struc_type.lower())
+
+    af2_flag = ""
+    if struc_type == "AF2":
+        af2_flag = " -c alphafold"
+    
+    os.system("prank predict -o %s_outs -threads 8%s %s_all.ds" % (struc_type.lower(), af2_flag, struc_type.lower())
+
+
+# creates folder for prank, creates input file, and runs the p2rank program
+#
+# params:
+# df (pandas DataFrame) - dataframe with all proteome structure files
+#
+# returns:
+# None
+def make_prank_dir(df):
+    if not os.path.isdir("../data"):
+        os.mkdir("../data")
+    if not os.path.isdir("../data/prank"):
+        os.mkdir("../data/prank")
+
+    run_prank(df, "AF2")
+    run_prank(df, "PDB")
 
 
 # takes pdb file with ONLY pocket residues and converts to list of res ids
@@ -687,9 +733,8 @@ def make_cavityspace_df(df, makedir=False, cavity_download_parent_dir=".."):
         os.mkdir("../data")
 
     if makedir:
-        print("ERROR: download not supported in this script yet")
-        return
-
+        setup_cavityspace()
+        
     # lists for cavityspace df
     uniprot_id = []
     structure_type = []
@@ -1019,14 +1064,18 @@ def make_pocketminer_df(df, makedir=True, start=0, n=-1):
 #
 # params:
 # df (pandas DataFrame) - dataframe of proteome structure information
+# makedir (bool) - flag for whether or not to construct prank data folder
 # start (int) - if creating dataframe in multiple parallel batches, the row index of df at which to start this batch
 # n (int) - if creating dataframe in multiple parallel batches, the number of rows in df to include in this batch; if this is set to any negative number, will process the whole df
 #
 # returns:
 # None
-def make_prank_df(df, start=0, n=-1):
+def make_prank_df(df, makedir=False, start=0, n=-1):
     if not os.path.isdir("../data"):
         os.mkdir("../data")
+
+    if makedir:
+        make_prank_dir(df)
 
     uniprot_id = []
     structure_type = []
@@ -1111,19 +1160,19 @@ def main(args):
     if args.knowndb:
         make_known_df()
     if args.castp:
-        make_castp_df(df, makedir=False)
+        make_castp_df(df, makedir=True)
     if args.fpocket:
-        make_fpocket_df(df, makedir=False, start=args.start, n=args.n)
+        make_fpocket_df(df, makedir=True, start=args.start, n=args.n)
     if args.pocketminer:
-        make_pocketminer_df(df, makedir=False, start=args.start, n=args.n)
+        make_pocketminer_df(df, makedir=True, start=args.start, n=args.n)
     if args.ligsite:
-        make_ligsite_df(df, makedir=False)
+        make_ligsite_df(df, makedir=True)
     if args.cavityspace:
-        make_cavityspace_df(df, makedir=False)
+        make_cavityspace_df(df, makedir=True)
     if args.autosite:
-        make_autosite_df(df, makedir=False, start=args.start, n=args.n)
+        make_autosite_df(df, makedir=True, start=args.start, n=args.n)
     if args.prank:
-        make_prank_df(df, start=args.start, n=args.n)
+        make_prank_df(df, makedir=True, start=args.start, n=args.n)
 
 
 if __name__ == "__main__":

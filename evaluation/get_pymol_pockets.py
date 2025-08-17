@@ -101,6 +101,33 @@ def prep_pockets(
     return pockets, pocket_ids
 
 
+def pymol_select(res_list, selname):
+    sel_str = "select %s," % selname
+    for res in res_list:
+        chain = res.split("-")[0]
+        res_num = int("-".join(res.split("-")[1:])[1:])
+        sel_str += "(chain %s and resi %d) or " % (chain, res_num)
+    sel_str = sel_str[:-4]  # get rid of trailing " or "
+    return sel_str
+
+
+def pymol_viz(pockets, preds, thresh=0.4):
+    sel_strs_list = []
+    for idx, p in enumerate(pockets):
+        if float(preds[idx]) < thresh:
+            selname = "rejected_pocket%d" % idx
+        else:
+            selname = "accepted_pocket%d" % idx
+        sel_str = pymol_select(p, selname)
+        sel_strs_list.append(sel_str)
+
+        if idx % 70 == 0 and idx > 0:
+            print(";".join(sel_strs_list))
+            print("\n\n")
+            sel_strs_list = []
+    print(";".join(sel_strs_list))
+
+
 def main(args):
     biolip = pd.read_csv("../data/known_pockets.csv")
     ligsite = pd.read_csv("../data/pred_ligsite_pockets.csv")

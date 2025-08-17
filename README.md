@@ -3,8 +3,6 @@
 
 ![HOTPocket logo](hotpocket.png)
 
-:construction: Repository under construction! :construction:
-
 This repository accompanies the manuscript "The Human Omnibus of Targetable Pockets", which is currently unpublished. HOTPocket = "The Human Omnibus of Targetable Pockets", aka the dataset. *hotpocketNN* = the method.
 
 ### Citation
@@ -26,15 +24,15 @@ In addition to citing our manuscript, please cite **all seven** constituent meth
 
 ### Installation
 1. Clone this repository: `git clone https://github.com/Helix-Research-Lab/HOTPocket`
-2. Install dependencies:
+2. Download the data from [Zenodo](https://zenodo.org/records/16891050) and move `hotpocket_data.tar.gz` into the `data` directory.
+3. Install dependencies:
 	1. Set up `hotpocket` environment (required): `conda env create --name hotpocket --file=environment.yml`
-	2. Install dependencies for PocketMiner (required to run PocketMiner on new structures): follow instructions [here](https://github.com/Mickdub/gvp/tree/pocket_pred)
-	3. Install dependencies for ESM2 (required to run *hotpocketNN* on new structures): follow instructions [here](https://github.com/facebookresearch/esm)
-3. Download the data: `./download_data.sh`
+	2. Install dependencies for ESM2 (required to run *hotpocketNN* on new structures): follow instructions [here](https://github.com/facebookresearch/esm)
+4. Run setup script: `./setup.sh`
 
 ### Usage
 #### Browsing HOTPocket
-We provide the 2.4 million predicted pockets across the whole human proteome as described in the accompanying manuscript in the `proteome_hotpocket_embs_NN_score.csv` file available on Zenodo. An alternate version computing using Feature Set C (see manuscript for feature set definitions) is available as `proteome_hotpocket_comb_NN_score.csv`, also on Zenodo. To see all predicted pockets alongside *hotpocketNN* scores without the 0.4 score cutoff, use `proteome_hotpocket_all_NN_score.csv` (again, from Zenodo). For more information on how to use these dataframes, see the data dictionary here. 
+We provide the 2.4 million predicted pockets across the whole human proteome as described in the accompanying manuscript in the `proteome_hotpocket_embs_NN_score.csv` file available on [Zenodo](https://zenodo.org/records/16891050). An alternate version computing using Feature Set C (see manuscript for feature set definitions) is available as `proteome_hotpocket_comb_NN_score.csv`, also on Zenodo. For more information on how to use these dataframes, see the [data dictionary](data_dictionary.md). 
 
 :construction: Coming soon: Website for easier browsing! :construction:
 
@@ -42,29 +40,31 @@ We provide the 2.4 million predicted pockets across the whole human proteome as 
 If your structure of interest does not have precomputed *hotpocketNN* pockets, you can compute them yourself following these steps:
 1. Get your structure file(s), sequence(s), and input dataframe
 
-You must have PDB structure files of any proteins you would like to run *hotpocketNN* on. Generate a fasta file containing the exact sequence represented in the PDB file using the `pdbs_to_fasta` function in `utils.py`.
+    You must have PDB structure files of any proteins you would like to run *hotpocketNN* on. Generate a fasta file containing the exact sequence represented in the PDB file using the `pdbs_to_fasta` function in `utils.py`.
 
-For the next step, you will need a dataframe of information about your structure.
+    For the next step, you will need a dataframe of information about your structure. This should take a similar form as `data/proteome_structure_files_canonical.csv`; there needs to be `uniprot id`, `structure type`, `structure id`, and `structure file` columns. See the [data dictionary](data_dictionary.md) for descriptions of these columns. Note that the `structure file` column in the version of `proteome_structure_files_canonical.csv` from Zenodo has `nan` for all rows -- to use this dataframe, please fill in the path to your local copies of the structure files. 
 
 2. Run constituent pocket-finding methods
 
-`assembly/make_db.py` contains most functionality needed to run the 7 constituent pocket-finding methods on a novel structure.
+    `assembly/make_db.py` contains all functionality needed to run the 7 constituent pocket-finding methods on a novel structure. For AutoSite, CASTp, CavitySpace, Fpocket, LIGSITEcs, and P2Rank, you must use the `hotpocket` environment. For PocketMiner, you must be using the `pocketminer` environment. You may either run the script from the command line with the corresponding flag (e.g. for AutoSite, `python make_db.py --autosite`, for PocketMiner, `python make_db.py --pocketminer`). You can also run the functions individually from the console with your desired parameters (e.g. if you do not need to build the directory in `../data`, you can call the function with `makedir=False`; we have also made some of these functions more easily parallelizable).
 
-3. Get ESM2 embedding
+    You may also obtain BioLiP2 annotations for your structures of interest by running `python make_db.py --knowndb` or calling the `make_known_df()` function, passing along the location of your (perhaps more recent than our) `BioLiP.txt` file.
 
-Use the `esm-extract` functionality as described in the [ESM2 respository](https://github.com/facebookresearch/esm) to generate ESM2 embeddings. You must have the `esmfold` environment activated. Note that you may need to increase the `--truncation_seq_length` parameter if your sequence is longer than the default.
+4. Get ESM2 embedding
 
-Run: `esm-extract esm2_t36_3B_UR50D [FASTA] [OUTPUT DIRECTORY] --include per_tok --truncation_seq_length [MAXIMUM SEQUENCE LENGTH]`
+    Use the `esm-extract` functionality as described in the [ESM2 respository](https://github.com/facebookresearch/esm) to generate ESM2 embeddings. You must have the `esmfold` environment activated. Note that you may need to increase the `--truncation_seq_length` parameter if your sequence is longer than the default.
 
-4. Run *hotpocketNN*
+    Run: `esm-extract esm2_t36_3B_UR50D [FASTA] [OUTPUT DIRECTORY] --include per_tok --truncation_seq_length [MAXIMUM SEQUENCE LENGTH]`
 
-*hotpocketNN* will take the candidate pockets predicted by the constituent pocket-finding methods and the ESM2 embeddings and generate a score, with which you can filter and/or rank the output pockets.
+5. Run *hotpocketNN*
 
-Navigate into the `assembly` directory and run `python run_hotpocketnn.py --in_strucid [INPUT DATAFRAME FROM STEP 1] --embdir [EMBEDDINGS DIRECTORY FROM STEP 3] --pdbdir [DIRECTORY CONTAINING STRUCTURES FROM STEP 1] --outdir [OUTPUT DIRECTORY] --errfile [FILENAME TO WRITE ERRORS]`
+    *hotpocketNN* will take the candidate pockets predicted by the constituent pocket-finding methods and the ESM2 embeddings and generate a score, with which you can filter and/or rank the output pockets.
 
-5. Visualize
+    Navigate into the `assembly` directory and run `python run_hotpocketnn.py --in_strucid [INPUT DATAFRAME FROM STEP 1] --embdir [EMBEDDINGS DIRECTORY FROM STEP 3] --pdbdir [DIRECTORY CONTAINING STRUCTURES FROM STEP 1] --outdir [OUTPUT DIRECTORY] --errfile [FILENAME TO WRITE ERRORS]`
 
-Optionally, visualize the output pockets using the functions contained within `evaluation/get_pymol_pockets.py`.
+6. Visualize
+
+    Optionally, visualize the output pockets using the functions contained within `evaluation/get_pymol_pockets.py`.
 
 Note that this whole process can be done with as few as one structure or as many as a whole other proteome. In the large-scale case, parallelization is imperative to get results in this lifetime. If you need help parallelizing these steps, please reach out and we can provide additional scripts.
 
