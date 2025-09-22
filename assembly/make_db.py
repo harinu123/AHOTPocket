@@ -284,7 +284,7 @@ def run_prank(df, struc_type):
     if struc_type == "AF2":
         af2_flag = " -c alphafold"
     
-    os.system("prank predict -o %s_outs -threads 8%s %s_all.ds" % (struc_type.lower(), af2_flag, struc_type.lower())
+    os.system("prank predict -o %s_outs -threads 8%s %s_all.ds" % (struc_type.lower(), af2_flag, struc_type.lower()))
 
 
 # creates folder for prank, creates input file, and runs the p2rank program
