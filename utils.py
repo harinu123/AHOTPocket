@@ -3,6 +3,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import SeqIO
 import os
+import numpy as np
 
 AA_3TO1 = {
     "ALA": "A",

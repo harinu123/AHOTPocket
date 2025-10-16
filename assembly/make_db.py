@@ -276,15 +276,17 @@ def run_prank(df, struc_type):
         return
 
     subdf = df[df["structure type"] == struc_type].copy()
-    subdf[["structure file"]].to_csv("../data/prank/%s_all.ds" % struc_type.lower(), index=False, header=False)
-    if not os.path.isdir("../data/prank/%s_outs" % struc_type.lower()):
-        os.mkdir("../data/prank/%s_outs" % struc_type.lower())
+    ds_file_name = "../data/prank/%s_all.ds" % struc_type.lower()
+    outdir = "../data/prank/%s_outs" % struc_type.lower()
+    subdf[["structure file"]].to_csv(ds_file_name, index=False, header=False)
+    if not os.path.isdir(outdir):
+        os.mkdir(outdir)
 
     af2_flag = ""
     if struc_type == "AF2":
         af2_flag = " -c alphafold"
     
-    os.system("prank predict -o %s_outs -threads 8%s %s_all.ds" % (struc_type.lower(), af2_flag, struc_type.lower()))
+    os.system("prank predict -o %s -threads 8%s %s" % (outdir, af2_flag, ds_file_name))
 
 
 # creates folder for prank, creates input file, and runs the p2rank program
@@ -346,7 +348,7 @@ def get_lines_within_radius(pdb_path, cen, r=5):
                 for atom in residue:
                     cen_coords = atom.get_coord()
 
-    resids_list = extract_resids(pdb_path, cen=cen_coords, r=r)
+    resids_list = extract_resids(pdb_path, cen=cen_coords, r=r)[0]
     resids = " ".join(resids_list)
     return resids
 
@@ -404,7 +406,7 @@ def get_fpocket_scores(info_fname):
                 if current_pocket == -1:
                     print("ERROR: not inside pocket but found score!")
                     print(line)
-                elif current_pocket in scores[prot].keys():
+                elif current_pocket in scores.keys():
                     print(
                         "ERROR: multiple druggability scores detected for single pocket"
                     )
@@ -680,7 +682,7 @@ def make_castp_df(df, makedir=True):
     structure_types = df["structure type"].tolist()
     for row_idx, struc_id in enumerate(df["structure id"]):
         pockets_path = os.path.join(
-            "../data", "castp", struc_id, "%s.poc" % row["structure id"]
+            "../data", "castp", struc_id, "%s.poc" % struc_id
         )
         info_path = "%sInfo" % pockets_path
         if not os.path.isfile(pockets_path) or not os.path.isfile(info_path):
@@ -857,23 +859,23 @@ def make_fpocket_df(df, makedir=True, start=0, n=-1):
     structure_ids = df["structure id"].tolist()
     for row_idx, fpath in enumerate(tqdm(df["structure file"])):
         fname = os.path.split(fpath)[1]
-        prot_dir = os.path.join("data/fpocket", "%s_out" % fname.split(".")[0])
+        prot_dir = os.path.join("../data/fpocket", "%s_out" % fname.split(".")[0])
         pockets_dir = os.path.join(prot_dir, "pockets")
         if not os.path.isdir(pockets_dir):
             continue
         pockets = os.listdir(pockets_dir)
         pockets = [f for f in pockets if f[-4:] == ".pdb"]
 
-        info_fname = os.path.join(prot_dir, "%s_info.txt" % prot)
+        info_fname = os.path.join(prot_dir, "%s_info.txt" % structure_ids[row_idx])
         scores_dict = get_fpocket_scores(info_fname)
         for p in pockets:
-            pocket_id = p.split("_")[0]
+            pid = p.split("_")[0]
             uniprot_id.append(uniprot_ids[row_idx])
             structure_type.append(structure_types[row_idx])
             structure_id.append(structure_ids[row_idx])
-            pocket_id.append(pocket_id)
+            pocket_id.append(pid)
             pocket_path.append(os.path.join(pockets_dir, p))
-            pocket_score.append(scores_dict[int(pocket_id[6:])])
+            pocket_score.append(scores_dict[int(pid[6:])])
 
     fpocket_df = pd.DataFrame(
         {
@@ -1008,11 +1010,13 @@ def make_pocketminer_df(df, makedir=True, start=0, n=-1):
             "../data/pocketminer", "%s_out" % fname.split(".")[0]
         )
         if not os.path.isdir(pockets_dir):
+            print("dir not found")
             continue
         pocket_scores_file = os.path.join(
             pockets_dir, "%s-preds.npy" % fname.split(".")[0]
         )
         if not os.path.isfile(pocket_scores_file):
+            print("scores not found")
             continue
         pocket_scores = np.load(pocket_scores_file)
         pocket_scores = pocket_scores.flatten()
@@ -1102,7 +1106,7 @@ def make_prank_df(df, makedir=False, start=0, n=-1):
     structure_ids = df["structure id"].tolist()
     for row_idx, fpath in enumerate(df["structure file"]):
         fname = os.path.split(fpath)[1]
-        subdir = "%s_outs" % row["structure type"].lower()
+        subdir = "%s_outs" % structure_types[row_idx].lower()
         out_fname = os.path.join(
             "../data", "prank", subdir, "%s_predictions.csv" % fname
         )
