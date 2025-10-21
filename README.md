@@ -68,6 +68,20 @@ If your structure of interest does not have precomputed *hotpocketNN* pockets, y
 
 Note that this whole process can be done with as few as one structure or as many as a whole other proteome. In the large-scale case, parallelization is imperative to get results in this lifetime. If you need help parallelizing these steps, please reach out and we can provide additional scripts.
 
+#### Exporting pockets to Boltz YAML
+
+If you would like to transform HOTPocket residue annotations into the schema expected by the [Boltz](https://github.com/jolibrain/boltz) design tool, use the `boltz_contact_export.py` helper in the repository root. The script reads any dataframe that contains the standard `pocket res` column and writes a compact CSV with the four fields used by Boltz (`binder`, `contacts`, `min_distance`, `force`). For example::
+
+    python boltz_contact_export.py my_pockets.csv boltz_contacts.csv \
+        --binder B --min-distance 10 --force
+
+creates a CSV whose rows can be copied directly into a YAML block::
+
+    binder: B
+    contacts: [[A, 126], [A, 277], [A, 37]]
+    min_distance: 10.0
+    force: true
+
 #### Evaluating pocket predictions
 The scripts in the `evaluation` directory contain all functions needed to repeat the analyses conducted in the accompanying manuscript. Specifically:
 - `dcccriterion.py` is for calculating the DCCcriterion as shown in Table 4.
